@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+#
+# xed-open.sh — open the current project in Xcode.
+#
+# With no arguments (or a single directory argument) this resolves the best
+# Xcode target in that directory — closest .xcworkspace, then .xcodeproj, then
+# Package.swift — and opens it. Any other invocation is handed straight to
+# /usr/bin/xed, so every flag xed supports keeps working unchanged.
+#
+# Part of the `xed` Claude Code plugin: https://github.com/Kilo-Loco/xed
+
+set -o pipefail
+
+# XED_BIN is overridable so the resolution logic can be exercised in tests
+# without actually launching Xcode.
+XED_BIN=${XED_BIN:-/usr/bin/xed}
+MAX_DEPTH=3
+
+die() {
+	printf 'xed: %s\n' "$*" >&2
+	exit 1
+}
+
+# Fail early and legibly rather than letting xed emit something cryptic.
+require_xcode() {
+	[ "$(uname -s)" = "Darwin" ] || die "this only works on macOS."
+	[ -x "$XED_BIN" ] || die "'$XED_BIN' not found — install Xcode from the Mac App Store."
+
+	local developer_dir
+	developer_dir=$(xcode-select -p 2>/dev/null)
+	case "$developer_dir" in
+	*CommandLineTools* | "")
+		die "the active developer directory is '${developer_dir:-unset}', which is the Command Line Tools, not Xcode.
+     Point it at Xcode first:
+       sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
+		;;
+	esac
+}
+
+# search <dir> <depth> <pattern> — matches, one per line, noise pruned.
+# `-print -prune` prints bundles like Foo.xcodeproj without descending into
+# them, which is what keeps Foo.xcodeproj/project.xcworkspace out of results.
+search() {
+	find "$1" -maxdepth "$2" \
+		\( -name .git -o -name .build -o -name DerivedData -o -name Pods \
+		-o -name Carthage -o -name node_modules -o -name .swiftpm \) -prune -o \
+		-name "$3" -print -prune 2>/dev/null | LC_ALL=C sort
+}
+
+# pick_best <dir> <match>... — break a tie, or list the candidates and fail.
+pick_best() {
+	local dir=$1
+	shift
+
+	local wanted match base
+	wanted=$(basename "$(cd "$dir" && pwd)")
+	for match in "$@"; do
+		base=$(basename "$match")
+		if [ "${base%.*}" = "$wanted" ]; then
+			printf '%s\n' "$match"
+			return 0
+		fi
+	done
+
+	{
+		printf 'xed: found more than one candidate — name the one you want:\n'
+		for match in "$@"; do printf '  %s\n' "$match"; done
+	} >&2
+	return 1
+}
+
+# resolve <dir> — print the target to open.
+# Exit 0 on success, 1 if nothing was found, 2 if the choice was ambiguous.
+#
+# Shallowest wins, so a project at the repo root beats a workspace buried in a
+# subdirectory. Within one depth, a workspace beats a project (the CocoaPods /
+# Tuist case, where opening the .xcodeproj is the wrong answer).
+resolve() {
+	local dir=$1 depth pattern line
+	local -a matches
+
+	for depth in $(seq 1 "$MAX_DEPTH"); do
+		for pattern in '*.xcworkspace' '*.xcodeproj' 'Package.swift'; do
+			matches=()
+			while IFS= read -r line; do
+				[ -n "$line" ] && matches[${#matches[@]}]=$line
+			done < <(search "$dir" "$depth" "$pattern")
+
+			case ${#matches[@]} in
+			0) continue ;;
+			1)
+				printf '%s\n' "${matches[0]}"
+				return 0
+				;;
+			*)
+				pick_best "$dir" "${matches[@]}" || return 2
+				return 0
+				;;
+			esac
+		done
+	done
+
+	return 1
+}
+
+# open_target <target> <flag>... — hand the resolved target to xed.
+open_target() {
+	local target=$1 label=$1
+	shift
+
+	# Xcode opens a Swift package from its directory, not from the manifest.
+	case "$target" in
+	*/Package.swift | Package.swift) target=$(dirname "$target") ;;
+	esac
+
+	"$XED_BIN" "$@" "$target" || die "xed could not open '$label'."
+	printf 'Opened %s in Xcode.\n' "$label"
+}
+
+main() {
+	require_xcode
+
+	local original=("$@")
+	local flags=() operands=()
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		-p | --project)
+			# An explicit project is already an answer — nothing to resolve.
+			exec "$XED_BIN" "${original[@]}"
+			;;
+		-l | --line)
+			[ $# -ge 2 ] || die "$1 needs a line number."
+			flags[${#flags[@]}]=$1
+			flags[${#flags[@]}]=$2
+			shift 2
+			;;
+		--)
+			shift
+			while [ $# -gt 0 ]; do
+				operands[${#operands[@]}]=$1
+				shift
+			done
+			;;
+		-*)
+			flags[${#flags[@]}]=$1
+			shift
+			;;
+		*)
+			operands[${#operands[@]}]=$1
+			shift
+			;;
+		esac
+	done
+
+	# More than one operand, or a single operand that is a file, means the
+	# caller already said exactly what to open. Pass it through untouched.
+	if [ ${#operands[@]} -gt 1 ] ||
+		{ [ ${#operands[@]} -eq 1 ] && [ ! -d "${operands[0]}" ]; }; then
+		exec "$XED_BIN" "${original[@]}"
+	fi
+
+	local dir=${operands[0]:-.}
+	[ -d "$dir" ] || die "no such directory: $dir"
+
+	# A bundle handed to us directly is already the target.
+	case "$dir" in
+	*.xcworkspace | *.xcodeproj)
+		open_target "$dir" "${flags[@]}"
+		return
+		;;
+	esac
+
+	local target status
+	target=$(resolve "$dir")
+	status=$?
+
+	case $status in
+	0) open_target "$target" "${flags[@]}" ;;
+	2) exit 1 ;; # resolve() already listed the candidates
+	*)
+		die "no .xcworkspace, .xcodeproj, or Package.swift found under '$dir' (searched $MAX_DEPTH levels deep)."
+		;;
+	esac
+}
+
+main "$@"

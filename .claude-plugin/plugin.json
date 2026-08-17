@@ -1,0 +1,13 @@
+{
+  "name": "xed",
+  "version": "1.0.0",
+  "description": "Adds /xed, which opens the current project in Xcode the way `xed` does in the terminal — but it finds the right target for you, preferring the closest .xcworkspace, then .xcodeproj, then Package.swift.",
+  "author": {
+    "name": "Kilo Loco",
+    "url": "https://github.com/Kilo-Loco"
+  },
+  "homepage": "https://github.com/Kilo-Loco/xed",
+  "repository": "https://github.com/Kilo-Loco/xed",
+  "license": "MIT",
+  "keywords": ["xcode", "swift", "ios", "macos", "xed"]
+}

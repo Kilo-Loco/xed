@@ -103,7 +103,7 @@ If nothing turns up, it says so rather than opening an empty Xcode window.
 bin/xed-open              the script — this is the actual product
 install.sh                puts it on PATH, installs agent files
 integrations/codex/       Codex CLI prompt + skill
-commands/xed.md           Claude Code command
+skills/xed/SKILL.md       Claude Code skill
 .claude-plugin/           Claude Code plugin + marketplace manifests
 ```
 
@@ -130,6 +130,15 @@ wrappers:
 If your agent supports shell pre-execution — Claude Code's ` ```! `, Gemini
 CLI's `!{...}`, OpenCode's `` !`…` `` — use it. Xcode opens immediately instead of
 after a round trip through the model.
+
+That speed has a catch worth knowing about, and it's why the two wrappers here
+differ. Pre-executed commands run *before* the agent reads the file, so if the
+agent can also decide on its own to load the wrapper, merely judging it relevant
+launches Xcode. The Claude Code skill therefore sets
+`disable-model-invocation: true` and stays a `/xed` you type. The Codex skill has
+no pre-execution — Codex reads it and then chooses to run `xed-open` — so
+letting it trigger on intent is safe there. Pre-execution and intent-triggering
+are a bad pair for anything with a side effect.
 
 PRs for other agents are welcome.
 

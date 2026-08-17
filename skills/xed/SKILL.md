@@ -1,7 +1,9 @@
 ---
-description: "Open the current project in Xcode, like `xed` in the terminal"
+name: xed
+description: "Open the current project in Xcode, like `xed` in the terminal, picking the right target instead of guessing"
 argument-hint: "[dir|file...] [-l <line>] [-b] [-c]"
 allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/bin/xed-open:*)", "Bash(true)"]
+disable-model-invocation: true
 ---
 
 # xed
@@ -18,6 +20,11 @@ non-zero on the two cases that most need a considered response: an ambiguous
 project and no project at all. Swallowing the status keeps those reaching the
 instructions below. `Bash(true)` is pre-approved for the same reason — a
 compound command must match a permission rule on each side of the `||`.
+
+`disable-model-invocation` is set because the command above runs *before* Claude
+reads this file. Left model-invocable, Claude judging this skill relevant would
+launch Xcode as a side effect of that judgment. Opening an app is the user's
+call, so this stays a `/xed` you type.
 
 The script above has already run, and its output (including stderr) is inlined
 here. Report the outcome in one line — nothing more.

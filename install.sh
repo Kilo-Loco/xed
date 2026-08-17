@@ -19,7 +19,11 @@ set -o pipefail
 
 REPO_DIR=$(cd "$(dirname "$0")" && pwd)
 BIN_DIR=${XED_BIN_DIR:-}
+
+# Codex reads custom prompts from CODEX_HOME, but discovers skills under the
+# shared ~/.agents/skills convention, which CODEX_HOME does not affect.
 CODEX_HOME=${CODEX_HOME:-$HOME/.codex}
+SKILLS_DIR=${XED_SKILLS_DIR:-$HOME/.agents/skills}
 
 want_codex=auto
 link_only=0
@@ -146,11 +150,11 @@ install_file() {
 if [ "$link_only" -eq 0 ]; then
 	if [ "$want_codex" = "yes" ] || { [ "$want_codex" = "auto" ] && [ -d "$CODEX_HOME" ]; }; then
 		say ""
-		say "Installing Codex CLI files into $CODEX_HOME"
+		say "Installing Codex CLI files"
 		install_file "$REPO_DIR/integrations/codex/prompts/xed.md" \
 			"$CODEX_HOME/prompts/xed.md"
 		install_file "$REPO_DIR/integrations/codex/skills/xed/SKILL.md" \
-			"$CODEX_HOME/skills/xed/SKILL.md"
+			"$SKILLS_DIR/xed/SKILL.md"
 		say "  restart Codex to pick them up"
 	elif [ "$want_codex" = "auto" ]; then
 		say ""

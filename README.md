@@ -48,11 +48,15 @@ Restart Claude Code and `/xed` is there.
 ./install.sh --codex
 ```
 
-That installs both forms, since either may be what your version supports:
+That installs both forms, since which one your version supports differs:
 
-- `~/.codex/prompts/xed.md` → invoke as `/xed`
-- `~/.codex/skills/xed/SKILL.md` → invoke as `$xed`, or let Codex trigger it
-  when you ask to open something in Xcode
+- `~/.codex/prompts/xed.md` → invoke as `/prompts:xed`. Honors `CODEX_HOME`.
+  OpenAI has deprecated custom prompts in favor of skills.
+- `~/.agents/skills/xed/SKILL.md` → invoke as `$xed`, or let Codex trigger it
+  when you ask to open something in Xcode. Note this is `~/.agents/`, not
+  `~/.codex/` — skill discovery uses the shared `.agents/skills` convention and
+  ignores `CODEX_HOME`. Override the location with `XED_SKILLS_DIR` if you need
+  to; check it into `.agents/skills/` in a repo to share it with a team.
 
 Restart Codex afterward. Both call `xed-open`, so `install.sh` must have put it
 on your `PATH`.

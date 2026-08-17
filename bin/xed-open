@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
-# xed-open.sh — open the current project in Xcode.
+# xed-open — open the current project in Xcode.
 #
 # With no arguments (or a single directory argument) this resolves the best
 # Xcode target in that directory — closest .xcworkspace, then .xcodeproj, then
 # Package.swift — and opens it. Any other invocation is handed straight to
 # /usr/bin/xed, so every flag xed supports keeps working unchanged.
 #
-# Part of the `xed` Claude Code plugin: https://github.com/Kilo-Loco/xed
+# Plain bash with no dependencies beyond xed itself, so any coding agent that
+# can run a shell command can use it. https://github.com/Kilo-Loco/xed
 
 set -o pipefail
 
@@ -106,8 +107,8 @@ resolve() {
 # strip_wait <arg>... — print the arguments with xed's -w/--wait removed.
 #
 # `xed -w` blocks until the file is closed in Xcode. That is fine in a terminal
-# but would hang the Claude Code session that invoked us, so it is dropped —
-# loudly, rather than pretending it was honored.
+# but would hang the agent session that invoked it, so it is dropped — loudly,
+# rather than pretending it was honored.
 strip_wait() {
 	local arg rest kept=() dropped=0 passthrough=0
 

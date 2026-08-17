@@ -1,0 +1,45 @@
+---
+name: xed
+description: Open a project in Xcode from the current directory, picking the right target (.xcworkspace over .xcodeproj over Package.swift) instead of guessing. Use when the user says "open in Xcode", "xed", "open the workspace/project", or asks to jump to a file or line in Xcode. macOS with Xcode only.
+---
+
+# xed
+
+Open the project in Xcode by running:
+
+```sh
+xed-open
+```
+
+That is the whole job. Run it, report the result in one line, and stop — do not
+summarize the project, read files, or offer next steps afterward.
+
+## Arguments
+
+`xed-open` takes the same arguments as `xed(1)`, so pass through whatever the
+user asked for:
+
+| They asked for | Run |
+| --- | --- |
+| the project, the workspace, "open Xcode" | `xed-open` |
+| a specific directory | `xed-open SomeDir` |
+| a specific file | `xed-open Sources/App.swift` |
+| a file at a line | `xed-open -l 42 Sources/App.swift` |
+| Xcode left in the background | `xed-open -b` |
+
+Resolution only happens when no file is named; anything naming a file is passed
+straight through to `xed`. `-w`/`--wait` is stripped, because waiting on Xcode
+would block this session.
+
+## When it fails
+
+- **Several candidates listed.** It found more than one workspace or project and
+  will not guess. Ask the user which one, then rerun with that path.
+- **Nothing found.** There is no `.xcworkspace`, `.xcodeproj`, or `Package.swift`
+  within three levels. Say so — do not create a project or widen the search by
+  hand.
+- **`xed-open: command not found`.** It is not on `PATH`. Say so and point at
+  `install.sh` from https://github.com/Kilo-Loco/xed. Do not reimplement it.
+- **Command Line Tools error.** The active developer directory points at the CLT
+  rather than Xcode. Relay the `xcode-select -s` fix it prints; do not run it
+  yourself, since it needs the user's password.

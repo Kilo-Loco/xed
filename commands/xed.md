@@ -1,7 +1,7 @@
 ---
 description: "Open the current project in Xcode, like `xed` in the terminal"
 argument-hint: "[dir|file...] [-l <line>] [-b] [-c]"
-allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/xed-open.sh:*)"]
+allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/bin/xed-open:*)"]
 ---
 
 # xed
@@ -9,7 +9,7 @@ allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/xed-open.sh:*)"]
 Open the project in Xcode:
 
 ```!
-"${CLAUDE_PLUGIN_ROOT}/scripts/xed-open.sh" $ARGUMENTS
+"${CLAUDE_PLUGIN_ROOT}/bin/xed-open" $ARGUMENTS
 ```
 
 The script above has already run. Report its outcome in one line — nothing more.

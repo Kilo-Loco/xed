@@ -39,8 +39,13 @@ Requires macOS with Xcode installed (not just the Command Line Tools).
 | `/xed -b` | Opens the resolved target but leaves Xcode in the background |
 | `/xed -p App.xcodeproj File.swift` | Straight passthrough to `xed` |
 
-Every flag `xed(1)` supports — `-c`, `-b`, `-w`, `-l`, `-p` — works. Resolution
-only kicks in when you didn't name a file yourself.
+Every flag `xed(1)` supports — `-c`, `-b`, `-l`, `-p` — works. Resolution only
+kicks in when you didn't name a file yourself.
+
+The one exception is `-w`/`--wait`, which is stripped (with a note on stderr).
+It tells `xed` to block until the file is closed in Xcode, which is useful as a
+shell primitive but would hang the Claude Code session that invoked it. Use
+`xed -w` directly in a terminal if you need that.
 
 ## How the target is chosen
 

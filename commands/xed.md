@@ -1,6 +1,6 @@
 ---
 description: "Open the current project in Xcode, like `xed` in the terminal"
-argument-hint: "[dir|file...] [-l <line>] [-b] [-c] [-w]"
+argument-hint: "[dir|file...] [-l <line>] [-b] [-c]"
 allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/xed-open.sh:*)"]
 ---
 

@@ -103,6 +103,61 @@ resolve() {
 	return 1
 }
 
+# strip_wait <arg>... — print the arguments with xed's -w/--wait removed.
+#
+# `xed -w` blocks until the file is closed in Xcode. That is fine in a terminal
+# but would hang the Claude Code session that invoked us, so it is dropped —
+# loudly, rather than pretending it was honored.
+strip_wait() {
+	local arg rest kept=() dropped=0 passthrough=0
+
+	for arg in "$@"; do
+		if [ "$passthrough" -eq 1 ]; then
+			kept[${#kept[@]}]=$arg
+			continue
+		fi
+		case "$arg" in
+		--)
+			passthrough=1
+			kept[${#kept[@]}]=$arg
+			;;
+		-w | --wait)
+			dropped=1
+			;;
+		# Bundles of xed's value-less short flags, e.g. -bw. Anything with a
+		# flag that takes a value (-l, -p) is left alone.
+		-*w*)
+			case "$arg" in
+			-[bcw]*)
+				rest=$(printf '%s' "${arg#-}" | tr -d 'w')
+				case "$rest" in
+				*[!bc]*) kept[${#kept[@]}]=$arg ;; # not a pure -bcw bundle
+				"") dropped=1 ;;
+				*)
+					dropped=1
+					kept[${#kept[@]}]=-$rest
+					;;
+				esac
+				;;
+			*) kept[${#kept[@]}]=$arg ;;
+			esac
+			;;
+		*)
+			kept[${#kept[@]}]=$arg
+			;;
+		esac
+	done
+
+	[ "$dropped" -eq 1 ] &&
+		printf "xed: ignoring -w — waiting for Xcode would block the session.\n" >&2
+
+	# Guarded: `printf '%s\0'` with no arguments still runs its format once,
+	# which would hand the caller a spurious empty argument.
+	[ ${#kept[@]} -gt 0 ] && printf '%s\0' "${kept[@]}"
+
+	return 0
+}
+
 # open_target <target> <flag>... — hand the resolved target to xed.
 open_target() {
 	local target=$1 label=$1
@@ -119,6 +174,13 @@ open_target() {
 
 main() {
 	require_xcode
+
+	local -a argv=()
+	local arg
+	while IFS= read -r -d '' arg; do
+		argv[${#argv[@]}]=$arg
+	done < <(strip_wait "$@")
+	set -- ${argv[@]+"${argv[@]}"}
 
 	local original=("$@")
 	local flags=() operands=()

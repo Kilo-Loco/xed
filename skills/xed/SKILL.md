@@ -35,5 +35,8 @@ here. Report the outcome in one line — nothing more.
   path. Do not pick one yourself.
 - It failed some other way — relay the error verbatim and stop. Do not try to
   fix the project, create one, or widen the search by hand.
-- `${CLAUDE_PLUGIN_ROOT}` came through unsubstituted — report that the plugin is
-  not installed correctly rather than guessing at a path.
+- The command above ran against a literal CLAUDE_PLUGIN_ROOT placeholder
+  instead of a real directory — report that the plugin is not installed
+  correctly rather than guessing at a path. (That name is written bare on
+  purpose: in the braced form it would be substituted here too, and a
+  backslash does not prevent it.)

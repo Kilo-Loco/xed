@@ -1,6 +1,6 @@
 {
   "name": "xed",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Adds /xed, which opens the current project in Xcode the way `xed` does in the terminal — but it finds the right target for you, preferring the closest .xcworkspace, then .xcodeproj, then Package.swift.",
   "author": {
     "name": "Kilo Loco",

@@ -1,7 +1,7 @@
 ---
 name: xed
 description: "Open the current project — or the worktree on a given branch — in Xcode, like `xed` in the terminal, picking the right target instead of guessing"
-argument-hint: "[dir|file...] [--branch <name>] [-l <line>] [-b] [-c]"
+argument-hint: "[dir|file...] [--branch <name>] [--pull] [-l <line>] [-b] [-c]"
 allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/bin/xed-open:*)", "Bash(true)"]
 disable-model-invocation: true
 ---
@@ -36,7 +36,12 @@ here. Report the outcome in one line — nothing more.
 - It noted that the branch is behind its upstream — repeat the note alongside
   the "Opened ..." line and stop. Do not `git pull`, `git fetch`, or offer to.
   The project is open; whether to update it is a separate decision the user has
-  not asked you to make.
+  not asked you to make. `--pull` is how they ask, and it is theirs to type.
+- It reported that it did not pull — dirty checkout, no upstream, unreachable
+  remote, or a branch that has diverged — repeat that verbatim and stop. Do not
+  stash, commit, set an upstream, retry the fetch, or reach for `git pull
+  --rebase` or `git merge`. `--pull` fast-forwards or it declines; working
+  around the decline is not what was asked for.
 - No worktree has the requested branch checked out — say so and stop. Do not run
   `git worktree add`, check the branch out, or open a different one. `--branch`
   opens a checkout that already exists; creating one is the user's call.

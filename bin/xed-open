@@ -157,6 +157,60 @@ warn_if_behind() {
 		"$branch" "$behind" "$([ "$behind" -eq 1 ] || printf s)" "$upstream" >&2
 }
 
+# pull_latest <dir> <label> — fast-forward <dir> to its upstream before opening.
+#
+# Opt-in, because it touches the network and moves a branch. Three rules keep it
+# from being something you regret having asked for:
+#
+#   1. Fast-forward only. Never merges, never rebases, so it cannot invent a
+#      commit or leave you in a conflicted tree to untangle inside Xcode.
+#   2. Skipped outright on a dirty checkout, before any fetch. `--ff-only` would
+#      often succeed there anyway, and quietly moving the branch under
+#      uncommitted work is not what "open my project" should do.
+#   3. Never fatal. You asked to open a project; a pull that could not happen is
+#      reported and the project still opens.
+pull_latest() {
+	local dir=$1 label=$2 upstream before after count
+
+	git -C "$dir" rev-parse --git-dir >/dev/null 2>&1 ||
+		die "--pull needs a git repository, and '$dir' is not in one."
+
+	if [ -n "$(git -C "$dir" status --porcelain 2>/dev/null)" ]; then
+		printf "xed: not pulling — %s has uncommitted changes. Opening it as it is.\n" "$label" >&2
+		return 0
+	fi
+
+	upstream=$(git -C "$dir" rev-parse --abbrev-ref --symbolic-full-name HEAD@{upstream} 2>/dev/null)
+	if [ -z "$upstream" ]; then
+		printf "xed: not pulling — %s is not tracking a remote branch. Opening it as it is.\n" "$label" >&2
+		return 0
+	fi
+
+	if ! git -C "$dir" fetch --quiet "${upstream%%/*}" 2>/dev/null; then
+		printf "xed: not pulling — could not reach '%s'. Opening %s as it is.\n" "${upstream%%/*}" "$label" >&2
+		return 0
+	fi
+
+	before=$(git -C "$dir" rev-parse HEAD 2>/dev/null)
+	if ! git -C "$dir" merge --ff-only --quiet "$upstream" 2>/dev/null; then
+		# The common cause is local commits the remote does not have, which is
+		# a decision (rebase? merge?) rather than a thing to pick silently.
+		printf "xed: not pulling — %s has diverged from %s and cannot fast-forward.
+     Reconcile it yourself; opening it as it is.\n" "$label" "$upstream" >&2
+		return 0
+	fi
+	after=$(git -C "$dir" rev-parse HEAD 2>/dev/null)
+
+	if [ "$before" = "$after" ]; then
+		printf "xed: %s is already up to date with %s.\n" "$label" "$upstream" >&2
+		return 0
+	fi
+
+	count=$(git -C "$dir" rev-list --count "$before..$after" 2>/dev/null)
+	printf "xed: pulled %s commit%s into %s from %s.\n" \
+		"$count" "$([ "$count" = 1 ] || printf s)" "$label" "$upstream" >&2
+}
+
 # strip_wait <arg>... — print the arguments with xed's -w/--wait removed.
 #
 # `xed -w` blocks until the file is closed in Xcode. That is fine in a terminal
@@ -237,10 +291,14 @@ main() {
 	set -- ${argv[@]+"${argv[@]}"}
 
 	local original=("$@")
-	local flags=() operands=() branch=
+	local flags=() operands=() branch= pull=
 
 	while [ $# -gt 0 ]; do
 		case "$1" in
+		--pull)
+			pull=1
+			shift
+			;;
 		--branch)
 			[ $# -ge 2 ] || die "--branch needs a branch name."
 			branch=$2
@@ -258,6 +316,9 @@ main() {
 			case " ${original[*]} " in
 			*" --branch "* | *" --branch="*)
 				die "--branch and $1 are mutually exclusive."
+				;;
+			*" --pull "*)
+				die "--pull and $1 are mutually exclusive."
 				;;
 			esac
 			exec "$XED_BIN" "${original[@]}"
@@ -288,14 +349,21 @@ main() {
 
 	# More than one operand, or a single operand that is a file, means the
 	# caller already said exactly what to open. Pass it through untouched —
-	# except with --branch, which xed itself knows nothing about.
-	if [ -z "$branch" ] &&
+	# except with --branch or --pull, which xed itself knows nothing about.
+	if [ -z "$branch" ] && [ -z "$pull" ] &&
 		{ [ ${#operands[@]} -gt 1 ] ||
 			{ [ ${#operands[@]} -eq 1 ] && [ ! -d "${operands[0]}" ]; }; }; then
 		exec "$XED_BIN" "${original[@]}"
 	fi
 
 	local dir=${operands[0]:-.}
+
+	# Suppressing the passthrough above means a file operand now lands here,
+	# where it would fail as "no such directory". Name the real problem.
+	if [ -n "$pull" ] && [ ${#operands[@]} -gt 0 ]; then
+		{ [ ${#operands[@]} -eq 1 ] && [ -d "${operands[0]}" ]; } ||
+			die "--pull updates a checkout, so it can't be combined with a file."
+	fi
 
 	if [ -n "$branch" ]; then
 		[ ${#operands[@]} -eq 0 ] ||
@@ -316,10 +384,23 @@ main() {
 			die "'$branch' is checked out at '$dir', but that directory is gone.
      Clear the stale entry with: git worktree prune"
 
-		warn_if_behind "$dir" "$branch"
 	fi
 
 	[ -d "$dir" ] || die "no such directory: $dir"
+
+	# Pulling supersedes the note: a successful fast-forward leaves nothing to
+	# be behind by, and a skipped one has already said why on its own terms.
+	if [ -n "$pull" ]; then
+		# Without --branch there is no name to hand back, and "pulled 2 commits
+		# into ." tells you nothing. Ask the checkout what it is on.
+		local label=$branch
+		[ -n "$label" ] || label=$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null)
+		case "$label" in '' | HEAD) label=$dir ;; esac
+
+		pull_latest "$dir" "$label"
+	elif [ -n "$branch" ]; then
+		warn_if_behind "$dir" "$branch"
+	fi
 
 	# A bundle handed to us directly is already the target.
 	case "$dir" in

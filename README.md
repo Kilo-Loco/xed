@@ -72,6 +72,7 @@ on your `PATH`.
 | `xed-open -b` | Opens the resolved target but leaves Xcode in the background |
 | `xed-open -p App.xcodeproj File.swift` | Straight passthrough to `xed` |
 | `xed-open --branch main` | Resolves inside the worktree that has `main` checked out |
+| `xed-open --branch main --pull` | Fast-forwards that worktree first, then opens it |
 
 ## Opening another branch
 
@@ -107,6 +108,31 @@ state are all too much to hide behind "open my editor". That's the tradeoff the
 `as of your last fetch` wording is admitting to — fetch first if the number has
 to be right. With nothing fetched at all, git has no idea it's behind and
 neither does this.
+
+### `--pull` when you want it current
+
+Add `--pull` and it fast-forwards the checkout to its upstream before opening:
+
+```
+/xed --branch main --pull
+xed: pulled 3 commits into main from origin/main.
+Opened /Users/you/code/MyApp/MyApp.xcworkspace in Xcode.
+```
+
+Opt-in, because unlike everything else here it touches the network and moves a
+branch. Three rules keep it from being something you regret asking for:
+
+1. **Fast-forward only.** It never merges and never rebases, so it can't invent
+   a commit or drop you into a conflicted tree to untangle from inside Xcode. A
+   branch that has diverged is reported and left exactly as it was.
+2. **Skipped on a dirty checkout**, before it fetches anything. `--ff-only`
+   would often succeed there anyway, but moving the branch under your
+   uncommitted work isn't what "open my project" should do.
+3. **Never fatal.** You asked to open a project. A pull that couldn't happen —
+   dirty tree, no upstream, unreachable remote, diverged branch — says why on
+   stderr, and the project still opens.
+
+It works without `--branch` too, on whatever checkout you're already in.
 
 ### It never creates anything
 

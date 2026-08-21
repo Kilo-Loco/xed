@@ -4,8 +4,9 @@
 #
 # With no arguments (or a single directory argument) this resolves the best
 # Xcode target in that directory — closest .xcworkspace, then .xcodeproj, then
-# Package.swift — and opens it. Any other invocation is handed straight to
-# /usr/bin/xed, so every flag xed supports keeps working unchanged.
+# Package.swift — and opens it. `--branch <name>` resolves inside the existing
+# worktree that has <name> checked out instead. Any other invocation is handed
+# straight to /usr/bin/xed, so every flag xed supports keeps working unchanged.
 #
 # Plain bash with no dependencies beyond xed itself, so any coding agent that
 # can run a shell command can use it. https://github.com/Kilo-Loco/xed
@@ -104,6 +105,33 @@ resolve() {
 	return 1
 }
 
+# worktree_for <branch> — print the checkout that has <branch> checked out.
+#
+# The main clone is itself a worktree as far as `git worktree list` is
+# concerned, so this finds it too — `--branch main` from a feature worktree
+# lands on the original checkout without any special case. Only existing
+# checkouts are considered; nothing is created.
+#
+# Exit 0 on success, 1 if no worktree has that branch, 2 if there was nowhere to
+# look (the message is already on stderr in that case). The split matters
+# because die() inside a command substitution only kills the subshell, so the
+# caller has to be the one that stops.
+worktree_for() {
+	command -v git >/dev/null 2>&1 ||
+		{ printf 'xed: git is not installed, so --branch has nothing to look in.\n' >&2; return 2; }
+	git rev-parse --git-dir >/dev/null 2>&1 ||
+		{ printf 'xed: not inside a git repository, so --branch has nothing to look in.\n' >&2; return 2; }
+
+	# Detached worktrees have no `branch` line, and so never match.
+	# `exit !found` rather than exiting from the match: awk's `exit` runs END
+	# anyway, so an exit status set there is the one that survives.
+	git worktree list --porcelain | awk -v want="refs/heads/$1" '
+		/^worktree /{path = substr($0, 10)}
+		/^branch /{if (substr($0, 8) == want) {print path; found = 1; exit}}
+		END{exit !found}
+	'
+}
+
 # strip_wait <arg>... — print the arguments with xed's -w/--wait removed.
 #
 # `xed -w` blocks until the file is closed in Xcode. That is fine in a terminal
@@ -184,12 +212,29 @@ main() {
 	set -- ${argv[@]+"${argv[@]}"}
 
 	local original=("$@")
-	local flags=() operands=()
+	local flags=() operands=() branch=
 
 	while [ $# -gt 0 ]; do
 		case "$1" in
+		--branch)
+			[ $# -ge 2 ] || die "--branch needs a branch name."
+			branch=$2
+			shift 2
+			;;
+		--branch=*)
+			branch=${1#--branch=}
+			[ -n "$branch" ] || die "--branch needs a branch name."
+			shift
+			;;
 		-p | --project)
 			# An explicit project is already an answer — nothing to resolve.
+			# Checked against the whole argument list, not just what has been
+			# parsed, so the two orderings fail the same way.
+			case " ${original[*]} " in
+			*" --branch "* | *" --branch="*)
+				die "--branch and $1 are mutually exclusive."
+				;;
+			esac
 			exec "$XED_BIN" "${original[@]}"
 			;;
 		-l | --line)
@@ -217,13 +262,28 @@ main() {
 	done
 
 	# More than one operand, or a single operand that is a file, means the
-	# caller already said exactly what to open. Pass it through untouched.
-	if [ ${#operands[@]} -gt 1 ] ||
-		{ [ ${#operands[@]} -eq 1 ] && [ ! -d "${operands[0]}" ]; }; then
+	# caller already said exactly what to open. Pass it through untouched —
+	# except with --branch, which xed itself knows nothing about.
+	if [ -z "$branch" ] &&
+		{ [ ${#operands[@]} -gt 1 ] ||
+			{ [ ${#operands[@]} -eq 1 ] && [ ! -d "${operands[0]}" ]; }; }; then
 		exec "$XED_BIN" "${original[@]}"
 	fi
 
 	local dir=${operands[0]:-.}
+
+	if [ -n "$branch" ]; then
+		[ ${#operands[@]} -eq 0 ] ||
+			die "--branch names the checkout to open, so it can't be combined with a path."
+
+		local status
+		dir=$(worktree_for "$branch")
+		status=$?
+		[ "$status" -eq 2 ] && exit 1
+		[ "$status" -eq 0 ] ||
+			die "no worktree has '$branch' checked out. \`git worktree list\` shows the ones that exist."
+	fi
+
 	[ -d "$dir" ] || die "no such directory: $dir"
 
 	# A bundle handed to us directly is already the target.

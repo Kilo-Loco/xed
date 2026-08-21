@@ -71,6 +71,32 @@ on your `PATH`.
 | `xed-open -l 42 Sources/App.swift` | Opens the file and jumps to line 42 |
 | `xed-open -b` | Opens the resolved target but leaves Xcode in the background |
 | `xed-open -p App.xcodeproj File.swift` | Straight passthrough to `xed` |
+| `xed-open --branch main` | Resolves inside the worktree that has `main` checked out |
+
+## Opening another branch
+
+If you work in git worktrees, `--branch <name>` opens the checkout that has that
+branch, wherever it is:
+
+```
+/xed --branch main
+Opened /Users/you/code/MyApp/MyApp.xcworkspace in Xcode.
+```
+
+The main clone is a worktree as far as git is concerned, so `--branch main`
+finds it from inside a feature worktree without any setup. Target resolution
+then works exactly as it does anywhere else.
+
+It only ever opens a checkout that already exists. If no worktree has that
+branch, it says so rather than running `git worktree add` behind your back —
+creating a checkout is a bigger decision than opening one. `git worktree list`
+shows what's available. Worktrees on a detached HEAD have no branch and never
+match.
+
+`--branch` replaces the path argument rather than joining it, and doesn't
+combine with `-p`.
+
+## Flags
 
 Every flag `xed(1)` supports — `-c`, `-b`, `-l`, `-p` — works. Resolution only
 kicks in when you didn't name a file yourself.

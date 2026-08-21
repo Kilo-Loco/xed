@@ -1,6 +1,6 @@
 ---
 description: Open the current project in Xcode, like `xed` in the terminal
-argument-hint: "[dir|file...] [-l <line>] [-b] [-c]"
+argument-hint: "[dir|file...] [--branch <name>] [-l <line>] [-b] [-c]"
 ---
 
 Run this in the shell, exactly as written:

@@ -87,11 +87,35 @@ The main clone is a worktree as far as git is concerned, so `--branch main`
 finds it from inside a feature worktree without any setup. Target resolution
 then works exactly as it does anywhere else.
 
+### It opens the checkout as it is
+
+Whatever is on disk in that worktree is what Xcode shows, uncommitted changes
+and all. Worktrees are independent checkouts, so a dirty `main` is not a
+conflict — it's just what `main` currently looks like on your machine.
+
+Being *behind the remote* is easier to miss, so that one gets a note:
+
+```
+/xed --branch main
+xed: note — 'main' is 3 commits behind origin/main as of your last fetch.
+Opened /Users/you/code/MyApp/MyApp.xcworkspace in Xcode.
+```
+
+The note is stderr, never fatal, and read from refs already on disk. It does
+not fetch: a network round trip, an offline failure mode, and a mutation of repo
+state are all too much to hide behind "open my editor". That's the tradeoff the
+`as of your last fetch` wording is admitting to — fetch first if the number has
+to be right. With nothing fetched at all, git has no idea it's behind and
+neither does this.
+
+### It never creates anything
+
 It only ever opens a checkout that already exists. If no worktree has that
 branch, it says so rather than running `git worktree add` behind your back —
 creating a checkout is a bigger decision than opening one. `git worktree list`
 shows what's available. Worktrees on a detached HEAD have no branch and never
-match.
+match, and one whose directory you deleted without pruning is named as the stale
+entry it is rather than reported as a missing branch.
 
 `--branch` replaces the path argument rather than joining it, and doesn't
 combine with `-p`.

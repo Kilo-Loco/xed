@@ -132,6 +132,31 @@ worktree_for() {
 	'
 }
 
+# warn_if_behind <dir> <branch> — note on stderr if <branch> trails its upstream.
+#
+# Read entirely from refs already on disk. Fetching here would be more accurate
+# but would put a network round trip, an offline failure mode, and a repo-state
+# mutation behind what is supposed to be "open my editor" — so the note says
+# what it is based on and lets the reader judge.
+#
+# Silent when there is no upstream, when it is unreachable, or when the branch
+# is current. Never fatal: being behind is a fact worth knowing, not a reason
+# to refuse to open the project.
+warn_if_behind() {
+	local dir=$1 branch=$2 upstream behind
+
+	upstream=$(git -C "$dir" rev-parse --abbrev-ref --symbolic-full-name "$branch@{upstream}" 2>/dev/null) || return 0
+	[ -n "$upstream" ] || return 0
+
+	behind=$(git -C "$dir" rev-list --count "$branch..$upstream" 2>/dev/null) || return 0
+	case "$behind" in
+	'' | 0 | *[!0-9]*) return 0 ;;
+	esac
+
+	printf "xed: note — '%s' is %s commit%s behind %s as of your last fetch.\n" \
+		"$branch" "$behind" "$([ "$behind" -eq 1 ] || printf s)" "$upstream" >&2
+}
+
 # strip_wait <arg>... — print the arguments with xed's -w/--wait removed.
 #
 # `xed -w` blocks until the file is closed in Xcode. That is fine in a terminal
@@ -282,6 +307,16 @@ main() {
 		[ "$status" -eq 2 ] && exit 1
 		[ "$status" -eq 0 ] ||
 			die "no worktree has '$branch' checked out. \`git worktree list\` shows the ones that exist."
+
+		# A worktree whose directory was deleted stays registered until it is
+		# pruned, and git keeps listing it. Say that, rather than letting it
+		# fall through to a bare "no such directory" that reads like the
+		# branch name was wrong.
+		[ -d "$dir" ] ||
+			die "'$branch' is checked out at '$dir', but that directory is gone.
+     Clear the stale entry with: git worktree prune"
+
+		warn_if_behind "$dir" "$branch"
 	fi
 
 	[ -d "$dir" ] || die "no such directory: $dir"

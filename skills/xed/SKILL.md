@@ -33,6 +33,10 @@ here. Report the outcome in one line — nothing more.
   the project, read files, or offer next steps.
 - It listed several candidates — ask which one to open, then rerun with that
   path. Do not pick one yourself.
+- It noted that the branch is behind its upstream — repeat the note alongside
+  the "Opened ..." line and stop. Do not `git pull`, `git fetch`, or offer to.
+  The project is open; whether to update it is a separate decision the user has
+  not asked you to make.
 - No worktree has the requested branch checked out — say so and stop. Do not run
   `git worktree add`, check the branch out, or open a different one. `--branch`
   opens a checkout that already exists; creating one is the user's call.

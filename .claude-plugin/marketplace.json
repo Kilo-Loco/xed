@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "xed",
-      "description": "Adds /xed, which opens the current project in Xcode the way `xed` does in the terminal — but it finds the right target for you, preferring the closest .xcworkspace, then .xcodeproj, then Package.swift.",
+      "description": "Adds /xed, which opens the current project in Xcode the way `xed` does in the terminal — but it finds the right target for you, preferring the closest .xcworkspace, then .xcodeproj, then Package.swift. Pass --branch <name> to open the worktree that has that branch checked out, and --pull to fast-forward it first.",
       "author": {
         "name": "Kilo Loco",
         "url": "https://github.com/Kilo-Loco"

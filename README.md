@@ -71,6 +71,94 @@ on your `PATH`.
 | `xed-open -l 42 Sources/App.swift` | Opens the file and jumps to line 42 |
 | `xed-open -b` | Opens the resolved target but leaves Xcode in the background |
 | `xed-open -p App.xcodeproj File.swift` | Straight passthrough to `xed` |
+| `xed-open --branch main` | Resolves inside the worktree that has `main` checked out |
+| `xed-open --branch main --pull` | Fast-forwards that worktree first, then opens it |
+
+## Opening another branch
+
+If you work in git worktrees, `--branch <name>` opens the checkout that has that
+branch, wherever it is:
+
+```
+/xed --branch main
+Opened /Users/you/code/MyApp/MyApp.xcworkspace in Xcode.
+```
+
+The main clone is a worktree as far as git is concerned, so `--branch main`
+finds it from inside a feature worktree without any setup. Target resolution
+then works exactly as it does anywhere else.
+
+### It opens the checkout as it is
+
+Whatever is on disk in that worktree is what Xcode shows, uncommitted changes
+and all. Worktrees are independent checkouts, so a dirty `main` is not a
+conflict — it's just what `main` currently looks like on your machine.
+
+Being *behind the remote* is easier to miss, so that one gets a note:
+
+```
+/xed --branch main
+xed: note — 'main' is 3 commits behind origin/main as of your last fetch.
+Opened /Users/you/code/MyApp/MyApp.xcworkspace in Xcode.
+```
+
+The note is stderr, never fatal, and read from refs already on disk. It does
+not fetch: a network round trip, an offline failure mode, and a mutation of repo
+state are all too much to hide behind "open my editor". That's the tradeoff the
+`as of your last fetch` wording is admitting to — fetch first if you just want
+the number to be right, or use `--pull` if you want the branch itself brought up
+to date. With nothing fetched at all, git has no idea it's behind and
+neither does this.
+
+### `--pull` when you want it current
+
+Add `--pull` and it fast-forwards the checkout to its upstream before opening:
+
+```
+/xed --branch main --pull
+xed: pulled 3 commits into main from origin/main.
+Opened /Users/you/code/MyApp/MyApp.xcworkspace in Xcode.
+```
+
+Opt-in, because unlike everything else here it touches the network and moves a
+branch. Three rules keep it from being something you regret asking for:
+
+1. **Fast-forward only.** It never merges and never rebases, so it can't invent
+   a commit or drop you into a conflicted tree to untangle from inside Xcode. A
+   branch that has diverged is reported and left exactly as it was.
+2. **Skipped on a dirty checkout**, before it fetches anything. `--ff-only`
+   would often succeed there anyway, but moving the branch under your
+   uncommitted work isn't what "open my project" should do.
+3. **Never fatal.** You asked to open a project. A pull that couldn't happen —
+   dirty tree, no upstream, unreachable remote, diverged branch — says why on
+   stderr, and the project still opens.
+
+It works without `--branch` too, on whatever checkout you're already in.
+
+### It never creates anything
+
+It only ever opens a checkout that already exists. If no worktree has that
+branch, it says so rather than running `git worktree add` behind your back —
+creating a checkout is a bigger decision than opening one. `git worktree list`
+shows what's available, and if the branch exists but isn't checked out anywhere
+it hands you the `git worktree add` line to run. A branch that doesn't exist at
+all is reported as that instead — being sent to inspect your worktrees over a
+typo is worse than no advice.
+
+Worktrees on a detached HEAD have no branch and never match, and one whose
+directory you deleted without pruning is named as the stale entry it is rather
+than reported as a missing branch.
+
+`xed-open main` — no flag — is the mistake everyone makes once. When it names no
+existing path but does name a branch you have checked out somewhere, you get
+pointed at `--branch main` instead of at a file that isn't there. It's only ever
+a hint: a bare name is never resolved as a branch, and a real directory called
+`main` still wins.
+
+`--branch` replaces the path argument rather than joining it, and doesn't
+combine with `-p`.
+
+## Flags
 
 Every flag `xed(1)` supports — `-c`, `-b`, `-l`, `-p` — works. Resolution only
 kicks in when you didn't name a file yourself.
@@ -101,6 +189,7 @@ If nothing turns up, it says so rather than opening an empty Xcode window.
 
 ```
 bin/xed-open              the script — this is the actual product
+test/run.sh               its test suite — no dependencies, run it directly
 install.sh                puts it on PATH, installs agent files
 integrations/codex/       Codex CLI prompt + skill
 skills/xed/SKILL.md       Claude Code skill

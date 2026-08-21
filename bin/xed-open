@@ -172,8 +172,10 @@ warn_if_behind() {
 pull_latest() {
 	local dir=$1 label=$2 upstream before after count
 
-	git -C "$dir" rev-parse --git-dir >/dev/null 2>&1 ||
-		die "--pull needs a git repository, and '$dir' is not in one."
+	if ! git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
+		printf "xed: not pulling — %s is not in a git repository. Opening it as it is.\n" "$label" >&2
+		return 0
+	fi
 
 	if [ -n "$(git -C "$dir" status --porcelain 2>/dev/null)" ]; then
 		printf "xed: not pulling — %s has uncommitted changes. Opening it as it is.\n" "$label" >&2
@@ -302,6 +304,11 @@ main() {
 		--branch)
 			[ $# -ge 2 ] || die "--branch needs a branch name."
 			branch=$2
+			# Checked here as well as in the --branch= form: every gate below
+			# is `[ -n "$branch" ]`, so an empty value would turn the whole
+			# feature off and open the current directory instead — which is
+			# exactly what `--branch "$SOME_UNSET_VAR"` produces.
+			[ -n "$branch" ] || die "--branch needs a branch name."
 			shift 2
 			;;
 		--branch=*)
@@ -347,6 +354,23 @@ main() {
 		esac
 	done
 
+	# `xed-open main` is what a git-shaped brain types, and it would otherwise
+	# reach xed as a path that isn't there. Point at the flag rather than
+	# guessing: a bare name is only ever read as a hint, never resolved.
+	#
+	# Deliberately narrow. It fires only when the operand names no existing
+	# path AND some worktree has a branch by that name, so a genuinely
+	# mistyped filename still gets xed's own error. A real directory named
+	# `main` keeps winning, which is the whole point of an explicit flag.
+	#
+	# Worth the five lines because this is the one mistake the model cannot
+	# catch for you: the Claude Code skill substitutes $ARGUMENTS and runs the
+	# command before anything reads the instructions.
+	if [ -z "$branch" ] && [ ${#operands[@]} -eq 1 ] && [ ! -e "${operands[0]}" ] &&
+		worktree_for "${operands[0]}" >/dev/null 2>&1; then
+		die "no such file '${operands[0]}'. If you meant the branch, use: --branch ${operands[0]}"
+	fi
+
 	# More than one operand, or a single operand that is a file, means the
 	# caller already said exactly what to open. Pass it through untouched —
 	# except with --branch or --pull, which xed itself knows nothing about.
@@ -361,7 +385,8 @@ main() {
 	# Suppressing the passthrough above means a file operand now lands here,
 	# where it would fail as "no such directory". Name the real problem.
 	if [ -n "$pull" ] && [ ${#operands[@]} -gt 0 ]; then
-		{ [ ${#operands[@]} -eq 1 ] && [ -d "${operands[0]}" ]; } ||
+		[ ${#operands[@]} -eq 1 ] || die "--pull takes at most one directory."
+		[ -d "${operands[0]}" ] ||
 			die "--pull updates a checkout, so it can't be combined with a file."
 	fi
 
@@ -373,8 +398,16 @@ main() {
 		dir=$(worktree_for "$branch")
 		status=$?
 		[ "$status" -eq 2 ] && exit 1
-		[ "$status" -eq 0 ] ||
-			die "no worktree has '$branch' checked out. \`git worktree list\` shows the ones that exist."
+
+		# Two different mistakes wear the same failure. Sending someone to
+		# `git worktree add` when they simply typo'd the branch name is worse
+		# than useless, so name the remedy only once it is the right one.
+		if [ "$status" -ne 0 ]; then
+			git show-ref --verify --quiet "refs/heads/$branch" ||
+				die "there is no branch named '$branch'. \`git branch\` lists the ones there are."
+			die "'$branch' exists, but no worktree has it checked out.
+     Check one out with: git worktree add <path> $branch"
+		fi
 
 		# A worktree whose directory was deleted stays registered until it is
 		# pruned, and git keeps listing it. Say that, rather than letting it

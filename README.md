@@ -105,8 +105,9 @@ Opened /Users/you/code/MyApp/MyApp.xcworkspace in Xcode.
 The note is stderr, never fatal, and read from refs already on disk. It does
 not fetch: a network round trip, an offline failure mode, and a mutation of repo
 state are all too much to hide behind "open my editor". That's the tradeoff the
-`as of your last fetch` wording is admitting to — fetch first if the number has
-to be right. With nothing fetched at all, git has no idea it's behind and
+`as of your last fetch` wording is admitting to — fetch first if you just want
+the number to be right, or use `--pull` if you want the branch itself brought up
+to date. With nothing fetched at all, git has no idea it's behind and
 neither does this.
 
 ### `--pull` when you want it current
@@ -139,9 +140,20 @@ It works without `--branch` too, on whatever checkout you're already in.
 It only ever opens a checkout that already exists. If no worktree has that
 branch, it says so rather than running `git worktree add` behind your back —
 creating a checkout is a bigger decision than opening one. `git worktree list`
-shows what's available. Worktrees on a detached HEAD have no branch and never
-match, and one whose directory you deleted without pruning is named as the stale
-entry it is rather than reported as a missing branch.
+shows what's available, and if the branch exists but isn't checked out anywhere
+it hands you the `git worktree add` line to run. A branch that doesn't exist at
+all is reported as that instead — being sent to inspect your worktrees over a
+typo is worse than no advice.
+
+Worktrees on a detached HEAD have no branch and never match, and one whose
+directory you deleted without pruning is named as the stale entry it is rather
+than reported as a missing branch.
+
+`xed-open main` — no flag — is the mistake everyone makes once. When it names no
+existing path but does name a branch you have checked out somewhere, you get
+pointed at `--branch main` instead of at a file that isn't there. It's only ever
+a hint: a bare name is never resolved as a branch, and a real directory called
+`main` still wins.
 
 `--branch` replaces the path argument rather than joining it, and doesn't
 combine with `-p`.
@@ -177,6 +189,7 @@ If nothing turns up, it says so rather than opening an empty Xcode window.
 
 ```
 bin/xed-open              the script — this is the actual product
+test/run.sh               its test suite — no dependencies, run it directly
 install.sh                puts it on PATH, installs agent files
 integrations/codex/       Codex CLI prompt + skill
 skills/xed/SKILL.md       Claude Code skill

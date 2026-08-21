@@ -57,6 +57,8 @@ would block this session.
   unreachable remote, or a diverged branch — the project still opened. Repeat
   the reason and stop. Do not stash, commit, set an upstream, retry, or fall
   back to `git pull --rebase` or `git merge`. It fast-forwards or it declines.
+- **It suggested `--branch <name>`.** You passed a bare branch name as a path.
+  Rerun with the flag, exactly as suggested.
 - **No worktree has that branch checked out.** Say so and stop. Do not run
   `git worktree add`, check the branch out, or open a different branch —
   `--branch` opens what already exists, and creating one is the user's call.
